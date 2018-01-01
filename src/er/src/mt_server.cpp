@@ -33,9 +33,9 @@ NS_START(rcppsw, er);
  * Constructors/Destructors
  ******************************************************************************/
 mt_server::mt_server(const std::string& logfile_fname,
-               const er_lvl::value& dbglvl, const er_lvl::value& loglvl)
-    : server(logfile_fname, dbglvl, loglvl),
-      m_queue() {}
+                     const er_lvl::value& dbglvl,
+                     const er_lvl::value& loglvl)
+    : server(logfile_fname, dbglvl, loglvl), m_queue() {}
 
 /*******************************************************************************
  * Member Functions
@@ -49,13 +49,13 @@ void mt_server::flush(void) {
 
 void* mt_server::thread_main(__unused void* arg) {
   while (!terminated()) {
-    while (0 == m_queue.size()) sleep(1);
+    while (0 == m_queue.size()) { sleep(1); }
     msg_int msg = m_queue.dequeue();
     msg_report(msg);
   } /* while() */
 
   /* make sure all events remaining in queue are reported */
-  while (m_queue.size()) {
+  while (m_queue.size() > 0) {
     msg_int msg = m_queue.dequeue();
     msg_report(msg);
   } /* while() */

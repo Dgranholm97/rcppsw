@@ -27,13 +27,13 @@
 /*******************************************************************************
  * Includes
  ******************************************************************************/
+#include <boost/uuid/uuid_generators.hpp>
 #include <iosfwd>
 #include <string>
 #include <vector>
 #include "rcppsw/common/common.hpp"
 #include "rcppsw/er/server_mod.hpp"
 #include "rcppsw/patterns/singleton.hpp"
-#include <boost/uuid/uuid_generators.hpp>
 
 /*******************************************************************************
  * Namespaces
@@ -56,12 +56,13 @@ class server {
    * message besides the text of the message itself.
    */
   struct msg_int {
-    msg_int(const boost::uuids::uuid& id, const er_lvl::value& lvl,
-               const std::string& str)
-        : m_id(id), lvl_(lvl), str_(str) {}
-    boost::uuids::uuid m_id;
-    er_lvl::value lvl_;
-    std::string str_;
+    msg_int(const boost::uuids::uuid& id_,
+            const er_lvl::value& lvl_,
+            std::string str_)
+        : id(id_), lvl(lvl_), str(std::move(str_)) {}
+    boost::uuids::uuid id;
+    er_lvl::value lvl;
+    std::string str;
   };
 
   /**
@@ -72,23 +73,39 @@ class server {
    * @param dbglvl The initial debug printing level.
    * @param loglvl The initial logging level.
    */
-  server(const std::string& logfile_fname = "__no_file__",
-            const er_lvl::value& dbglvl = er_lvl::NOM,
-            const er_lvl::value& loglvl = er_lvl::NOM);
+  server(std::string logfile_fname,
+         const er_lvl::value& dbglvl,
+         const er_lvl::value& loglvl);
+
+  server(void): server("__no_file__", er_lvl::NOM, er_lvl::NOM) {}
 
   virtual ~server(void);
 
   status_t change_id(const boost::uuids::uuid& old_id,
                      boost::uuids::uuid new_id);
-  std::ofstream& log_stream(void) { return *m_logfile.get(); }
+  std::ofstream& log_stream(void) { return *m_logfile; }
   std::ostream& dbg_stream(void);
+  const std::string& logfile_fname(void) const { return m_logfile_fname; }
+
   /**
-   * @brief Enable debugging for the ER server. For debugging purposes only.
+   * @brief Install a callback to calculate a timestamp to be prepended to every
+   * message that is sent to stdout.
+   *
+   * This is useful when working with frameworks that do not provide such a
+   * timestamp, or that provide it for only logged messages.
    */
-  void self_er_en(void) {
-    insmod(m_er_id, "ER Server");
-    mod_dbglvl(m_er_id, er_lvl::NOM);
-  }
+  void dbg_ts_calculator(std::function<std::string(void)> cb);
+  const std::function<std::string(void)>& dbg_ts_calculator(void) const;
+
+  /**
+   * @brief Install a callback to calculate a timestamp to be prepended to every
+   * message that is sent to a logfile.
+   *
+   * This is useful when working with frameworks that do not provide such a
+   * timestamp, or that provide it for only messages sent to stdout.
+   */
+  void log_ts_calculator(std::function<std::string(void)> cb);
+  const std::function<std::string(void)>& log_ts_calculator(void) const;
 
   /**
    * @brief Find an existing module already installed on the server. Modules are
@@ -116,7 +133,8 @@ class server {
    * @return OK if successful, ERROR otherwise.
    */
   status_t insmod(const boost::uuids::uuid& mod_id,
-                  const er_lvl::value& loglvl, const er_lvl::value& dbglvl,
+                  const er_lvl::value& loglvl,
+                  const er_lvl::value& dbglvl,
                   const std::string& mod_name);
   /**
    * @brief Unconditionally install a new module into the list of active
@@ -202,9 +220,14 @@ class server {
    *
    * @return The hostname.
    */
-  char* hostname(void) { return m_hostname; }
+  char* hostname(void) { return reinterpret_cast<char*>(m_hostname); }
 
-    /**
+  /**
+   * @brief Enable debugging for the ER server. For debugging purposes only.
+   */
+  void self_er_en(void);
+
+  /**
    * @brief Report a message. Messages may or not actually be printed/logged,
    * depending on the current level settings in the server/module.
    *
@@ -212,7 +235,8 @@ class server {
    * @param lvl The level of the message.
    * @param str The message.
    */
-  virtual void report(const boost::uuids::uuid& er_id, const er_lvl::value& lvl,
+  virtual void report(const boost::uuids::uuid& er_id,
+                      const er_lvl::value& lvl,
                       const std::string& str) {
     msg_int msg(er_id, lvl, str);
     msg_report(msg);
@@ -228,26 +252,35 @@ class server {
 
  private:
   /* data members */
-  char                              m_hostname[32];
+  char m_hostname[32];
 
-  std::vector<server_mod>           m_modules;
-  std::string                       m_logfile_fname;  /// File to log events to.
-  std::unique_ptr<std::ofstream>    m_logfile;        /// Logfile handle.
+  std::vector<server_mod> m_modules;
+  std::string m_logfile_fname;              /// File to log events to.
+  std::unique_ptr<std::ofstream> m_logfile; /// Logfile handle.
 
   /** Default log level for new modules */
-  er_lvl::value                     m_loglvl_dflt;
+  er_lvl::value m_loglvl_dflt;
 
   /** Default debug printing level for new modules. */
-  er_lvl::value                     m_dbglvl_dflt;
+  er_lvl::value m_dbglvl_dflt;
+
+  std::function<std::string(void)> m_dbg_ts_calculator;
+  std::function<std::string(void)> m_log_ts_calculator;
 
   /** Generator for universally unique identifiers for modules */
-  boost::uuids::uuid m_er_id;
   boost::uuids::random_generator m_generator;
+  boost::uuids::uuid m_er_id;
 };
 
-class global_server: public patterns::singleton<server>, public server {
+class global_server : public patterns::singleton<server>, public server {
  public:
-  virtual ~global_server(void);
+  global_server(void) : server() {}
+  ~global_server(void) override;
+
+  global_server(const global_server& other) = delete;
+  global_server& operator=(const global_server& other) = delete;
+  global_server(global_server&& other) = delete;
+  global_server& operator=(global_server&& other) = delete;
 };
 
 NS_END(er, rcppsw);

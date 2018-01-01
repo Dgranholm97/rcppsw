@@ -1,5 +1,5 @@
 /**
- * @file executable_task.cpp
+ * @file partitionable_polled_task.cpp
  *
  * @copyright 2017 John Harwell, All rights reserved.
  *
@@ -21,7 +21,7 @@
 /*******************************************************************************
  * Includes
  ******************************************************************************/
-#include "rcppsw/task_allocation/executable_task.hpp"
+#include "rcppsw/task_allocation/partitionable_polled_task.hpp"
 #include "rcppsw/task_allocation/task_params.hpp"
 
 /*******************************************************************************
@@ -32,30 +32,20 @@ NS_START(rcppsw, task_allocation);
 /*******************************************************************************
  * Constructors/Destructor
  ******************************************************************************/
-executable_task::executable_task(const std::string& name,
-                                 const struct task_params* c_params,
-                                 executable_task* parent)
-    : logical_task(name, parent),
-      m_is_atomic(false),
-      m_is_partitionable(false),
-      m_interface_time(0.0),
-      m_interface_start_time(0.0),
-      m_exec_time(0.0),
-      m_exec_start_time(0.0),
-      m_interface_estimate(c_params->estimation_alpha),
-      m_exec_estimate(c_params->estimation_alpha) {}
+partitionable_polled_task::partitionable_polled_task(
+    const std::shared_ptr<er::server>& server,
+    const std::string& name,
+    const struct partitionable_task_params* c_params,
+    std::unique_ptr<taskable>& mechanism,
+    polled_task* parent)
+    : polled_task(name, c_params, mechanism, parent),
+      partitionable_task(server, c_params) {}
 
-executable_task::executable_task(const executable_task& other)
-    : logical_task(other),
-      m_is_atomic(false),
-      m_is_partitionable(false),
-      m_interface_time(other.m_interface_time),
-      m_interface_start_time(other.m_interface_start_time),
-      m_exec_time(other.m_exec_time),
-      m_exec_start_time(other.m_exec_start_time),
-      m_interface_estimate(other.m_interface_estimate),
-      m_exec_estimate(other.m_exec_estimate) {}
-
-executable_task::~executable_task(void) = default;
+void partitionable_polled_task::init_random(uint lb, uint ub) {
+  executable_task::update_exec_estimate(rand() % (ub - lb + 1) + lb);
+  last_partition(rand() % 2 ? partition1(): partition2());
+  partition1()->update_exec_estimate(rand() % (ub - lb + 1) + lb);
+  partition2()->update_exec_estimate(rand() % (ub - lb + 1) + lb);
+} /* init_random() */
 
 NS_END(task_allocation, rcppsw);

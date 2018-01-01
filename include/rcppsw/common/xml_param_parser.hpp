@@ -30,7 +30,9 @@
 /*******************************************************************************
  * Namespaces
  ******************************************************************************/
-namespace ticpp { class Element; }
+namespace ticpp {
+class Element;
+}
 
 NS_START(rcppsw, common);
 struct base_params;
@@ -46,8 +48,8 @@ struct base_params;
  */
 class xml_param_parser {
  public:
-  xml_param_parser(void) {}
-  virtual ~xml_param_parser(void) {}
+  xml_param_parser(void) = default;
+  virtual ~xml_param_parser(void) = default;
 
   /**
    * @brief Parser the provided XML node into an internal representation.
@@ -61,7 +63,13 @@ class xml_param_parser {
   virtual void show(std::ostream& stream) = 0;
 
   /**
-   * @brief Get the results of an XML parameter parse.
+   * @brief Validate the range, value, etc. of all parsed parameters. As such,
+   * don't call this unless the parameters have already been parsed.
+   */
+  virtual bool validate(void) { return true; }
+
+  /**
+   * @brief Get the results of parameter parse.
    */
   virtual const struct base_params* get_results(void) = 0;
 };

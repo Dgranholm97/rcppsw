@@ -25,11 +25,8 @@
  * Includes
  ******************************************************************************/
 #include <string>
-#include "rcppsw/task_allocation/polled_task.hpp"
 #include "rcppsw/task_allocation/partitionable_task.hpp"
-#include "rcppsw/task_allocation/task_sequence.hpp"
-#include "rcppsw/task_allocation/partition_probability.hpp"
-#include "rcppsw/task_allocation/task_params.hpp"
+#include "rcppsw/task_allocation/polled_task.hpp"
 
 /*******************************************************************************
  * Namespacesp
@@ -43,38 +40,15 @@ NS_START(rcppsw, task_allocation);
  * @brief A \ref partitionable_task whose execution is polled periodically by
  * the user to see if it has finished yet.
  */
-template<class T1, class T2>
-class partitionable_polled_task : public polled_task,
-                                  public partitionable_task<T1, T2> {
-  static_assert(std::is_base_of<polled_task, T1>::value,
-                "FATAL: template argument must be a polled task");
-  static_assert(std::is_base_of<polled_task, T2>::value,
-                "FATAL: template argument must be a polled task");
-
+class partitionable_polled_task : public polled_task, public partitionable_task {
  public:
-  partitionable_polled_task(const std::string& name,
-                            const struct task_params* const params,
+  partitionable_polled_task(const std::shared_ptr<er::server>& server,
+                            const std::string& name,
+                            const struct partitionable_task_params* c_params,
                             std::unique_ptr<taskable>& mechanism,
-                            polled_task* const parent = nullptr) :
-      polled_task(name, params, mechanism, parent),
-      partitionable_task<T1, T2>(),
-      m_partition_prob(params->reactivity) {
-  }
+                            polled_task* parent = nullptr);
 
-  double calc_partition_prob(void) override {
-    return m_partition_prob.calc(this->current_time_estimate(),
-                                 this->partition1()->current_time_estimate(),
-                                 this->partition2()->current_time_estimate());
-  }
-
-  void init_random(uint lb, uint ub) {
-    this->current_time_estimate.set_result(rand() % (ub - lb + 1) + lb);
-    this->partition1.current_time_estimate.set_result(rand() % (ub - lb + 1) + lb);
-    this->partition1.current_time_estimate.set_result(rand() % (ub - lb + 1) + lb);
-  }
-
- private:
-  partition_probability m_partition_prob;
+  void init_random(uint lb, uint ub);
 };
 
 NS_END(task_allocation, rcppsw);
